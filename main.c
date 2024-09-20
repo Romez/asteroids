@@ -83,7 +83,7 @@ Projectile* init_projectile(Vector2 center, float direction) {
     return p;
 }
 
-void fire(Ship* ship, Node* projectiles_dq) {
+void fire(Ship* ship, Node* projectiles_dq, int* projectiles_count) {
     Projectile* p = init_projectile(ship->vertices[0], ship->direction);
 
     Node* n = malloc(sizeof(Node));
@@ -97,13 +97,14 @@ void fire(Ship* ship, Node* projectiles_dq) {
 
     projectiles_dq->next = n;
     t->prev = n;
+
+    *projectiles_count += 1;
 }
 
 void move_projectile_forward(Projectile* p) {
     p->center.x = p->center.x + cos(p->direction) * 3;
     p->center.y = p->center.y - sin(p->direction) * 3;
 }
-
 
 Node* init_deque() {
     Node* sentinel_first = malloc(sizeof(Node));
@@ -121,6 +122,17 @@ Node* init_deque() {
     return sentinel_first;
 }
 
+void remove_node(Node* node) {
+    free(node->val);
+    Node* prev_node = node->prev;
+    Node* next_node = node->next;
+
+    prev_node->next = next_node;
+    next_node->prev = prev_node;
+
+    free(node);
+}
+
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -133,6 +145,7 @@ int main(void)
     const int screenHeight = 1450;
     const float rotation_speed = 0.2;
     const float move_speed = 5;
+    int projectiles_count = 0;
 
     Ship ship = init_ship(500, 500);
 
@@ -140,11 +153,11 @@ int main(void)
 
     InitWindow(screenWidth, screenHeight, "Asteroids");
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    SetTargetFPS(60); // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!WindowShouldClose()) // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
@@ -166,15 +179,29 @@ int main(void)
 	}
 
 	if (IsKeyPressed(KEY_SPACE)) {
-	    fire(&ship, projectiles_dq);
+	    fire(&ship, projectiles_dq, &projectiles_count);
 	}
 
-	Node* first_p = projectiles_dq;
-	while (first_p->next != NULL) {
-	    if (first_p->val != NULL) {
-		move_projectile_forward(first_p->val);
+	Node* curr_node = projectiles_dq;
+	while (curr_node != NULL)
+	{
+	    if (curr_node->val != NULL) {
+		Projectile* p = (Projectile*) curr_node->val;
+		if (p->center.x < 0 || p->center.x > screenWidth || p->center.y < 0 || p->center.y > screenHeight) {
+		    Node* curr_ptr = curr_node;
+
+		    curr_node = curr_node->next;
+
+		    projectiles_count -= 1;
+
+		    remove_node(curr_ptr);
+		} else {
+		    move_projectile_forward(curr_node->val);
+		    curr_node = curr_node->next;
+		}
+	    } else {
+		curr_node = curr_node->next;
 	    }
-	    first_p = first_p->next;
 	}
 
         //----------------------------------------------------------------------------------
@@ -202,7 +229,9 @@ int main(void)
 	    pr1 = pr1->next;
 	}
 
-	// DrawText("Congrats! You created your first window!", 190, 200, 20, LIGHTGRAY);
+	char projectiles_buffer[20];
+	sprintf(projectiles_buffer, "Projectiles: %d", projectiles_count);
+	DrawText(projectiles_buffer, 190, 200, 20, LIGHTGRAY);
 
         EndDrawing();
         //----------------------------------------------------------------------------------
