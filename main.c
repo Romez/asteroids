@@ -260,6 +260,7 @@ int main(void)
     const float projectile_speed = 9;
     int projectiles_count = 0;
     int asteroids_count = 0;
+    int score = 0;
 
     Ship ship = init_ship(500, 500);
 
@@ -311,7 +312,9 @@ int main(void)
 
 			remove_node(curr_ptr, &projectiles_count);
 
-			remove_node(collision_node, &asteroids_count);
+                        remove_node(collision_node, &asteroids_count);
+
+			score ++;
                     } else {
 			move_projectile_forward(p, projectile_speed);
 			curr_node = curr_node->next;
@@ -405,15 +408,17 @@ int main(void)
 	    curr_node = curr_node->next;
 	}
 
-	char projectiles_buffer[20];
-        sprintf(projectiles_buffer, "Projectiles: %d", projectiles_count);
-	DrawText(projectiles_buffer, 10, 10, 20, DARKGREEN);
+	char info_buffer[20];
+        sprintf(info_buffer, "Projectiles: %d", projectiles_count);
+	DrawText(info_buffer, 10, 10, 35, GREEN);
 
-        char asteroids_buffer[20];
-	sprintf(asteroids_buffer, "Asteroids: %d", asteroids_count);
-	DrawText(asteroids_buffer, 10, 30, 20, DARKGREEN);
+	sprintf(info_buffer, "Asteroids: %d", asteroids_count);
+        DrawText(info_buffer, 10, 50, 35, GREEN);
 
-	DrawFPS(10, 50);
+	sprintf(info_buffer, "Score: %d", score);
+	DrawText(info_buffer, 10, 90, 35, GREEN);
+
+	DrawFPS(10, 130);
 
         EndDrawing();
         //----------------------------------------------------------------------------------
