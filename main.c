@@ -140,6 +140,23 @@ void move_ship(Ship* ship, float speed, Direction dir, Screen screen) {
 	ship->center.y = ship->center.y + sin(ship->direction) * speed;
 	break;
     }
+
+    if (ship->center.x + ship->max_radius < 0) {
+	ship->center.x = screen.width + ship->max_radius - 1;
+    }
+
+    if (ship->center.x - ship->max_radius > screen.width) {
+	ship->center.x = 0 - ship->max_radius + 1;
+    }
+
+    if (ship->center.y + ship->max_radius < 0) {
+	ship->center.y = screen.height + ship->max_radius - 1;
+    }
+
+    if (ship->center.y - ship->max_radius > screen.height) {
+	ship->center.y = 0 - ship->max_radius;
+    }
+
     update_ship_vertices(ship);
 }
 
@@ -185,7 +202,7 @@ void move_projectile_forward(Projectile* p, float speed) {
     p->center.y = p->center.y - sin(p->direction) * speed;
 }
 
-Node* collision_with(Projectile* p, Node* asteroids) {
+Node* check_projectile_asteroids_collision(Projectile* p, Node* asteroids) {
     Node *current_node = asteroids;
     while(current_node != NULL) {
 	if (current_node->val != NULL) {
@@ -256,7 +273,7 @@ int main(void)
     //--------------------------------------------------------------------------------------
     const Screen screen = { .width = 1800, .height = 1450};
     const float rotation_speed = 0.06;
-    const float move_speed = 5;
+    const float move_speed = 3;
     const float projectile_speed = 9;
     int projectiles_count = 0;
     int asteroids_count = 0;
@@ -305,7 +322,7 @@ int main(void)
                 Projectile *p = (Projectile *)curr_node->val;
                 if (is_visible(p->center, p->radius, screen)) {
 		    Node *collision_node = NULL;
-                    if ((collision_node = collision_with(p, asteroids_dq)) != NULL) {
+                    if ((collision_node = check_projectile_asteroids_collision(p, asteroids_dq)) != NULL) {
 			Node *curr_ptr = curr_node;
 
 			curr_node = curr_node->next;
