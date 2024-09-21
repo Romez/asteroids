@@ -262,9 +262,10 @@ int main(void)
 	while (curr_node != NULL)
 	{
 	    if (curr_node->val != NULL) {
-		Projectile* p = (Projectile*) curr_node->val;
+                Projectile *p = (Projectile *)curr_node->val;
+		Node* colloision_node = NULL;
 
-		if (is_visible(p->center, screen) || collision_with(p, asteroids_dq) != NULL) {
+		if (is_visible(p->center, screen) || (colloision_node = collision_with(p, asteroids_dq)) != NULL) {
 		    Node* curr_ptr = curr_node;
 
 		    curr_node = curr_node->next;
@@ -275,7 +276,11 @@ int main(void)
 		} else {
 		    move_projectile_forward(p, projectile_speed);
 		    curr_node = curr_node->next;
-		}
+                }
+
+                if (colloision_node != NULL) {
+		    remove_node(colloision_node);
+                }
 	    } else {
 		curr_node = curr_node->next;
 	    }
