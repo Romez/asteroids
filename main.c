@@ -4,6 +4,16 @@
 #include <math.h>
 #include "include/raylib.h"
 
+#define MAX_ASTEROIDS 9
+
+typedef enum { MOVE_RIGHT, MOVE_UP, MOVE_LEFT, MOVE_DOWN } Direction;
+typedef enum { RIGHT, TOP, LEFT, BOTTOM} Side;
+
+typedef struct {
+    float radius;
+    float angle;
+} PolarCoords;
+
 typedef struct {
     const int width;
     const int height;
@@ -19,6 +29,7 @@ typedef struct {
     Vector2 center;
     float direction;
     Vector2 vertices[3];
+    float max_radius;
 } Ship;
 
 typedef struct {
@@ -27,41 +38,55 @@ typedef struct {
     float radius;
 } Projectile;
 
-typedef enum { MOVE_RIGHT, MOVE_UP, MOVE_LEFT, MOVE_DOWN } Direction;
-
 typedef struct {
     Vector2 center;
-    Vector2 vertices[8];
+    PolarCoords vertices[8];
+    Vector2 vectors[8];
     float direction;
     float angle;
+    float max_radius;
 } Asteroid;
 
 void update_ship_vertices(Ship* ship) {
-    int k = 30;
     float l = (3 * PI) / 4;
     float m = (5 * PI) / 4;
 
-    ship->vertices[0].x = ship->center.x + cos(ship->direction) * k;
-    ship->vertices[0].y = ship->center.y - sin(ship->direction) * k;
+    ship->vertices[0].x = ship->center.x + cos(ship->direction) * ship->max_radius;
+    ship->vertices[0].y = ship->center.y - sin(ship->direction) * ship->max_radius;
 
-    ship->vertices[1].x = ship->center.x + cos(ship->direction + l) * k;
-    ship->vertices[1].y = ship->center.y - sin(ship->direction + l) * k;
+    ship->vertices[1].x = ship->center.x + cos(ship->direction + l) * ship->max_radius;
+    ship->vertices[1].y = ship->center.y - sin(ship->direction + l) * ship->max_radius;
 
-    ship->vertices[2].x = ship->center.x + cos(ship->direction + m) * k;
-    ship->vertices[2].y = ship->center.y - sin(ship->direction + m) * k;
+    ship->vertices[2].x = ship->center.x + cos(ship->direction + m) * ship->max_radius;
+    ship->vertices[2].y = ship->center.y - sin(ship->direction + m) * ship->max_radius;
 }
 
 Ship init_ship(float x, float y) {
     Ship ship = {
 	.center = (Vector2){x, y},
 	.direction = 0.0,
+	.max_radius = 30,
     };
     update_ship_vertices(&ship);
 
     return ship;
 }
 
-Asteroid* init_asteroid(float x, float y) {
+Vector2 polar_to_vector(PolarCoords pc, Vector2 center, float angle) {
+    Vector2 v = {
+        .x = center.x + pc.radius * cos(pc.angle - angle),
+        .y = center.y + pc.radius * sin(pc.angle - angle),
+    };
+    return v;
+}
+
+void update_asteroid_vectors(Asteroid* a) {
+    for (int i = 0; i < 8; i++) {
+	a->vectors[i] = polar_to_vector(a->vertices[i], a->center, a->angle);
+    }
+}
+
+Asteroid* init_asteroid(float x, float y, float direction) {
     Asteroid* a = malloc(sizeof(Asteroid));
     assert(a != NULL && "Can't allocate asteroid");
 
@@ -69,37 +94,34 @@ Asteroid* init_asteroid(float x, float y) {
 
     a->center = center;
     a->angle = 0.0;
-    a->direction = 0.0;
+    a->direction = direction;
+    a->max_radius = 50;
 
-    a->vertices[0] = (Vector2) {center.x + 30, center.y};
-    a->vertices[1] = (Vector2) {center.x + 25, center.y - 25};
-    a->vertices[2] = (Vector2) {center.x + 5, center.y - 35};
-    a->vertices[3] = (Vector2) {center.x - 20, center.y - 25};
-    a->vertices[4] = (Vector2) {center.x - 30, center.y - 5};
-    a->vertices[5] = (Vector2) {center.x - 10, center.y + 20};
-    a->vertices[6] = (Vector2) {center.x + 10, center.y + 15};
-    a->vertices[7] = (Vector2) {center.x + 30, center.y};
+    a->vertices[7] = (PolarCoords) {30, 0};
+    a->vertices[6] = (PolarCoords) {50, PI / 6};
+    a->vertices[5] = (PolarCoords) {30, PI / 3};
+    a->vertices[4] = (PolarCoords) {30, PI / 2};
+    a->vertices[3] = (PolarCoords) {50, (3 * PI) / 4};
+    a->vertices[2] = (PolarCoords) {30, (4 * PI) / 3};
+    a->vertices[1] = (PolarCoords) {45, (7 * PI) / 4};
+    a->vertices[0] = (PolarCoords) {30, 0};
+
+    update_asteroid_vectors(a);
+
     return a;
 }
 
-/*
-void *rotate_asteroid(Asteroid* asteroid, float rotate_speed) {
-    int k = 30;
-    float l = (3 * PI) / 4;
-    float m = (5 * PI) / 4;
+void move_asteroid(Asteroid* a, float rotate_speed) {
+    float angle = fmod(a->angle - rotate_speed, (2 * PI));
+    a->angle = angle;
 
-    asteroid->angle = fmod(asteroid->angle - rotate_speed, (2 * PI));
-    for(int i = 0; i < 8; i++) {
-        Vector2 v = asteroid->vertices[i];
-        asteroid->vertices[i].x =
+    for (int i = 0; i < 8; i++) {
+	a->center.x = a->center.x + cos(a->direction) * .2;
+	a->center.y = a->center.y - sin(a->direction) * .2;
 
-
-        ship->vertices[0].x = ship->center.x + cos(ship->direction) * k;
-    ship->vertices[0].y = ship->center.y - sin(ship->direction) * k;
-
+        a->vectors[i] = polar_to_vector(a->vertices[i], a->center, a->angle);
     }
 }
-*/
 
 void move_ship(Ship* ship, float speed, Direction dir, Screen screen) {
     switch(dir) {
@@ -132,7 +154,7 @@ Projectile* init_projectile(Vector2 center, float direction) {
     return p;
 }
 
-void prepend_node(Node* dq, void* val) {
+void prepend_node(Node* dq, void* val, int* count) {
     Node* n = malloc(sizeof(Node));
     assert(n != NULL && "Can't allocate sentinel first");
 
@@ -144,18 +166,18 @@ void prepend_node(Node* dq, void* val) {
 
     dq->next = n;
     t->prev = n;
+
+    (*count)++;
 }
 
 void fire(Ship* ship, Node* projectiles_dq, int* projectiles_count) {
     Projectile* p = init_projectile(ship->vertices[0], ship->direction);
 
-    prepend_node(projectiles_dq, p);
-
-    *projectiles_count += 1;
+    prepend_node(projectiles_dq, p, projectiles_count);
 }
 
-bool is_visible(Vector2 point, Screen screen) {
-    return point.x < 0 || point.x > screen.width || point.y < 0 || point.y > screen.height;
+bool is_visible(Vector2 point, float radius, Screen screen) {
+    return point.x + radius >= 0 && point.x - radius <= screen.width && point.y + radius >= 0 && point.y - radius <= screen.height;
 }
 
 void move_projectile_forward(Projectile* p, float speed) {
@@ -164,15 +186,32 @@ void move_projectile_forward(Projectile* p, float speed) {
 }
 
 Node* collision_with(Projectile* p, Node* asteroids) {
-    Node* current_node = asteroids;
+    Node *current_node = asteroids;
     while(current_node != NULL) {
 	if (current_node->val != NULL) {
-	    Asteroid* a = (Asteroid*) current_node->val;
+          Asteroid *a = (Asteroid *)current_node->val;
 
-	    if (CheckCollisionPointPoly(p->center, a->vertices, 8)) {
-		return current_node;
-	    }
+          if (CheckCollisionCircles(a->center,a-> max_radius, p->center, p->radius)) {
+	      if (CheckCollisionPointPoly(p->center, a->vectors, 8)) {
+		  return current_node;
+              }
 
+	      if (CheckCollisionPointPoly((Vector2){p->center.x + p->radius, p->center.y}, a->vectors, 8)) {
+		  return current_node;
+              }
+
+	      if (CheckCollisionPointPoly((Vector2){p->center.x, p->center.y + p->radius}, a->vectors, 8)) {
+		  return current_node;
+              }
+
+	      if (CheckCollisionPointPoly((Vector2){p->center.x - p->radius, p->center.y}, a->vectors, 8)) {
+		  return current_node;
+              }
+
+	      if (CheckCollisionPointPoly((Vector2){p->center.x, p->center.y - p->radius}, a->vectors, 8)) {
+		  return current_node;
+              }
+          }
 	}
 	current_node = current_node->next;
     }
@@ -195,7 +234,7 @@ Node* init_deque() {
     return sentinel_first;
 }
 
-void remove_node(Node* node) {
+void remove_node(Node* node, int* count) {
     free(node->val);
     Node* prev_node = node->prev;
     Node* next_node = node->next;
@@ -204,6 +243,8 @@ void remove_node(Node* node) {
     next_node->prev = prev_node;
 
     free(node);
+
+    (*count)--;
 }
 
 //------------------------------------------------------------------------------------
@@ -214,18 +255,16 @@ int main(void)
     // Initialization
     //--------------------------------------------------------------------------------------
     const Screen screen = { .width = 1800, .height = 1450};
-    const float rotation_speed = 0.2;
+    const float rotation_speed = 0.06;
     const float move_speed = 5;
-    const float projectile_speed = 7;
+    const float projectile_speed = 9;
     int projectiles_count = 0;
+    int asteroids_count = 0;
 
     Ship ship = init_ship(500, 500);
 
     Node* projectiles_dq = init_deque();
-    Node* asteroids_dq = init_deque();
-
-    Asteroid* asteroid = init_asteroid(900, 500);
-    prepend_node(asteroids_dq, asteroid);
+    Node *asteroids_dq = init_deque();
 
     InitWindow(screen.width, screen.height, "Asteroids");
 
@@ -263,51 +302,78 @@ int main(void)
 	{
 	    if (curr_node->val != NULL) {
                 Projectile *p = (Projectile *)curr_node->val;
-		Node* colloision_node = NULL;
+                if (is_visible(p->center, p->radius, screen)) {
+		    Node *collision_node = NULL;
+                    if ((collision_node = collision_with(p, asteroids_dq)) != NULL) {
+			Node *curr_ptr = curr_node;
 
-		if (is_visible(p->center, screen) || (colloision_node = collision_with(p, asteroids_dq)) != NULL) {
-		    Node* curr_ptr = curr_node;
+			curr_node = curr_node->next;
+
+			remove_node(curr_ptr, &projectiles_count);
+
+			remove_node(collision_node, &asteroids_count);
+                    } else {
+			move_projectile_forward(p, projectile_speed);
+			curr_node = curr_node->next;
+		    }
+                } else {
+		    Node *curr_ptr = curr_node;
 
 		    curr_node = curr_node->next;
 
-		    projectiles_count -= 1;
-
-		    remove_node(curr_ptr);
-		} else {
-		    move_projectile_forward(p, projectile_speed);
-		    curr_node = curr_node->next;
-                }
-
-                if (colloision_node != NULL) {
-		    remove_node(colloision_node);
-                }
+		    remove_node(curr_ptr, &projectiles_count);
+		}
 	    } else {
 		curr_node = curr_node->next;
 	    }
 	}
 
 	curr_node = asteroids_dq;
-	while (curr_node != NULL)
-	{
-	    if (curr_node->val != NULL) {
-		Asteroid* a = (Asteroid*) curr_node->val;
+        while (curr_node != NULL)
+        {
+            if (curr_node->val != NULL) {
+                Asteroid *a = (Asteroid *)curr_node->val;
+                if (is_visible(a->center, a->max_radius, screen)) {
+                    move_asteroid(a, 0.03);
 
-		// if (is_visible(a->center, screen)) {
-		//     Node* curr_ptr = curr_node;
+                    curr_node = curr_node->next;
+                } else {
+                    Node* curr_ptr = curr_node;
 
-		//     curr_node = curr_node->next;
+                    curr_node = curr_node->next;
 
-		//     projectiles_count -= 1;
+                    remove_node(curr_ptr, &asteroids_count);
+                }
+            } else {
+                curr_node = curr_node->next;
+            }
+        }
 
-		//     remove_node(curr_ptr);
-		// } else {
-		//move_projectile_forward(a, projectile_speed);
-		curr_node = curr_node->next;
-		    //}
-	    } else {
-		curr_node = curr_node->next;
+        if (MAX_ASTEROIDS > asteroids_count && (GetRandomValue(0, 60) == 4)) {
+            Asteroid *a;
+            float direction;
+
+            switch (GetRandomValue(RIGHT, BOTTOM)) {
+            case RIGHT:
+		direction = GetRandomValue(90, 270) * DEG2RAD;
+		a = init_asteroid(screen.width, GetRandomValue(0, screen.height), direction);
+		break;
+            case TOP:
+		direction = GetRandomValue(180, 360) * DEG2RAD;
+		a = init_asteroid(GetRandomValue(180, 360), 0, direction);
+		break;
+            case LEFT:
+		direction = (GetRandomValue(270, 450) % 360) * DEG2RAD;
+		a = init_asteroid(0, GetRandomValue(0, screen.height), direction);
+		break;
+            case BOTTOM:
+		direction = (GetRandomValue(270, 450) % 360) * DEG2RAD;
+		a = init_asteroid(GetRandomValue(0, 180), screen.height, direction);
+		break;
 	    }
-	}
+
+            prepend_node(asteroids_dq, a, &asteroids_count);
+        }
 
         //----------------------------------------------------------------------------------
 
@@ -316,12 +382,6 @@ int main(void)
         BeginDrawing();
 
 	ClearBackground(DARKGRAY);
-
-	DrawCircleV(ship.center, 5, WHITE);
-
-	DrawCircleV(ship.vertices[0], 5, RED);
-	DrawCircleV(ship.vertices[1], 5, GREEN);
-	DrawCircleV(ship.vertices[2], 5, BLUE);
 
 	DrawTriangleLines(ship.vertices[0], ship.vertices[1], ship.vertices[2], WHITE);
 
@@ -340,20 +400,20 @@ int main(void)
 	{
 	    if (curr_node->val != NULL) {
 		Asteroid* a = (Asteroid*) curr_node->val;
-		Vector2 points[9];
-		points[0] = a->center;
-		for (int i = 0; i < 9; i++) {
-		    points[i+1] = a->vertices[i];
-		}
-
-		DrawTriangleFan(points, 9, WHITE);
+		DrawSplineLinear(a->vectors, 8, 1, WHITE);
 	    }
 	    curr_node = curr_node->next;
 	}
 
 	char projectiles_buffer[20];
-	sprintf(projectiles_buffer, "Projectiles: %d", projectiles_count);
-	DrawText(projectiles_buffer, 10, 10, 20, LIGHTGRAY);
+        sprintf(projectiles_buffer, "Projectiles: %d", projectiles_count);
+	DrawText(projectiles_buffer, 10, 10, 20, DARKGREEN);
+
+        char asteroids_buffer[20];
+	sprintf(asteroids_buffer, "Asteroids: %d", asteroids_count);
+	DrawText(asteroids_buffer, 10, 30, 20, DARKGREEN);
+
+	DrawFPS(10, 50);
 
         EndDrawing();
         //----------------------------------------------------------------------------------
