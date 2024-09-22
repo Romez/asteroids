@@ -1,7 +1,7 @@
 .PHONY: clean
 
 asteroids: main.c
-	gcc -Wall -I./include -o asteroids main.c ./lib/libraylib.a -lm
+	gcc -std=c2x -Wall -pedantic -I./include main.c deque.c -o asteroids ./lib/libraylib.a -lm
 
 clear:
 	rm ./asteroids
