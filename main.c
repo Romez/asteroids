@@ -279,10 +279,21 @@ void draw_info(int projectiles_count, int asteroids_count, int score) {
     DrawFPS(10, 130);
 }
 
-void draw_game_over() {
-    char buffer[20];
-    sprintf(buffer, "Game Over");
-    DrawText(buffer, 500, 600, 35, WHITE);    
+void draw_game_over(Screen screen) {
+    char* game_over = "Game Over";
+    int game_over_font_size = 34;
+    int game_over_len = MeasureText(game_over, game_over_font_size);
+    int game_over_x = screen.width / 2 - game_over_len / 2;
+    int game_over_y = screen.height / 2 - (game_over_font_size / 2);
+    DrawText(game_over, game_over_x, game_over_y, game_over_font_size, WHITE);
+
+    /*
+    int rect_width = 400;
+    int rect_height = 60;
+    int rect_x = screen.width / 2 - rect_width / 2;
+    int rect_y = game_over_y + game_over_font_size + 10;
+    DrawRectangleLines(rect_x, rect_y, rect_width, rect_height, WHITE);
+    */
 }
 
 //------------------------------------------------------------------------------------
@@ -402,9 +413,7 @@ int main(void) {
                 switch (GetRandomValue(RIGHT, BOTTOM)) {
                 case RIGHT:
                     direction = GetRandomValue(90, 270) * DEG2RAD;
-                    a = init_asteroid(screen.width,
-                                      GetRandomValue(0, screen.height),
-                                      direction);
+                    a = init_asteroid(screen.width, GetRandomValue(0, screen.height), direction);
                     break;
                 case TOP:
                     direction = GetRandomValue(180, 360) * DEG2RAD;
@@ -412,13 +421,11 @@ int main(void) {
                     break;
                 case LEFT:
                     direction = (GetRandomValue(270, 450) % 360) * DEG2RAD;
-                    a = init_asteroid(0, GetRandomValue(0, screen.height),
-                                      direction);
+                    a = init_asteroid(0, GetRandomValue(0, screen.height), direction);
                     break;
                 case BOTTOM:
                     direction = (GetRandomValue(270, 450) % 360) * DEG2RAD;
-                    a = init_asteroid(GetRandomValue(0, 180), screen.height,
-                                      direction);
+                    a = init_asteroid(GetRandomValue(0, 180), screen.height, direction);
                     break;
                 }
 
@@ -450,7 +457,7 @@ int main(void) {
 	    draw_info(projectiles_dq->count, asteroids_dq->count, score);
 	    break;
 	case GAME_OVER:
-            draw_game_over();
+            draw_game_over(screen);
 	    break;
 	}
 	
