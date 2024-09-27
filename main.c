@@ -9,7 +9,7 @@
 
 typedef enum { MOVE_RIGHT, MOVE_UP, MOVE_LEFT, MOVE_DOWN } Direction;
 typedef enum { RIGHT, TOP, LEFT, BOTTOM } Side;
-typedef enum { RUNNING, GAME_OVER} GameState;
+typedef enum { RUNNING, GAME_OVER, WINNERS} GameState;
 
 typedef struct {
     float radius;
@@ -239,7 +239,7 @@ bool check_ship_asteroid_collision(Ship* ship, Asteroid* a) {
 	    }
 	}
     }
-    
+
     return false;
 }
 
@@ -269,17 +269,17 @@ void draw_info(int projectiles_count, int asteroids_count, int score) {
     char info_buffer[20];
     sprintf(info_buffer, "Projectiles: %d", projectiles_count);
     DrawText(info_buffer, 10, 10, 35, GREEN);
-    
+
     sprintf(info_buffer, "Asteroids: %d", asteroids_count);
     DrawText(info_buffer, 10, 50, 35, GREEN);
-    
+
     sprintf(info_buffer, "Score: %d", score);
     DrawText(info_buffer, 10, 90, 35, GREEN);
-    
+
     DrawFPS(10, 130);
 }
 
-void draw_game_over(Screen screen) {
+void draw_game_over(Screen screen, char* player) {
     char* game_over = "Game Over";
     int game_over_font_size = 34;
     int game_over_len = MeasureText(game_over, game_over_font_size);
@@ -287,13 +287,13 @@ void draw_game_over(Screen screen) {
     int game_over_y = screen.height / 2 - (game_over_font_size / 2);
     DrawText(game_over, game_over_x, game_over_y, game_over_font_size, WHITE);
 
-    /*
     int rect_width = 400;
     int rect_height = 60;
     int rect_x = screen.width / 2 - rect_width / 2;
     int rect_y = game_over_y + game_over_font_size + 10;
     DrawRectangleLines(rect_x, rect_y, rect_width, rect_height, WHITE);
-    */
+
+    DrawText(player, rect_x + 10, rect_y + 10, 34, WHITE);
 }
 
 //------------------------------------------------------------------------------------
@@ -308,6 +308,9 @@ int main(void) {
     const float projectile_speed = 9;
     int score = 0;
     GameState game_state = RUNNING;
+    int player_len = 0;
+    char player[128];
+    player[0] = '\0';
 
     Ship ship = init_ship(500, 500);
 
@@ -398,7 +401,7 @@ int main(void) {
 			asteroid_node = asteroid_node->next;
 			continue;
 		    }
-		    
+
 		    move_asteroid(a);
 		    asteroid_node = asteroid_node->next;
                 } else {
@@ -433,8 +436,37 @@ int main(void) {
 	    }
 
 	    break;
-	case GAME_OVER:
-	    
+	case GAME_OVER: {
+	    int key = GetKeyPressed();
+	    if (key == KEY_ENTER) {
+		player[player_len] = '\0';
+		game_state = WINNERS;
+
+		FILE* fp = fopen("./winners.csv", "a");
+		assert(fp != NULL && "Can't open winners file");
+
+		fseek(fp, 0, SEEK_END);
+
+		fprintf(fp, "%s,%d\n",  player, score);
+		
+		fclose(fp);
+	    }
+
+	    if (key == KEY_BACKSPACE) {
+		if (player_len > 0) {
+		    player_len--;
+		    player[player_len] = '\0';
+		}
+	    }
+
+	    if ((key >= 32) && (key <= 126)) {
+		player[player_len] = (char) key;
+		player_len++;
+	    }
+	    break;
+	}
+
+	case WINNERS:
 	    break;
 	}
 
@@ -446,21 +478,50 @@ int main(void) {
 
 	ClearBackground(DARKGRAY);
 
-	switch(game_state){
+	switch(game_state) {
 	case RUNNING:
 	    DrawTriangleLines(ship.vertices[0], ship.vertices[1], ship.vertices[2], WHITE);
-	    
+
 	    draw_projectiles(projectiles_dq);
-	    
+
 	    draw_asteroids(asteroids_dq);
-	    
+
 	    draw_info(projectiles_dq->count, asteroids_dq->count, score);
 	    break;
-	case GAME_OVER:
-            draw_game_over(screen);
+	case GAME_OVER:	    
+	    DrawTriangleLines(ship.vertices[0], ship.vertices[1], ship.vertices[2], WHITE);
+
+	    draw_projectiles(projectiles_dq);
+
+	    draw_asteroids(asteroids_dq);
+
+	    draw_info(projectiles_dq->count, asteroids_dq->count, score);
+	    
+            draw_game_over(screen, player);
+	    break;
+
+	case WINNERS: {
+	    int i = 0;
+
+	    FILE* fp = fopen("./winners.csv", "r+");
+	    assert(fp != NULL && "Can't open winners file");
+
+	    char player[32];
+	    int score;
+
+	    char buffer[64];
+
+	    while (fscanf(fp, "%[^,],%d\n", player, &score) == 2) {
+		sprintf(buffer, "Player: %s - Score: %d\n", player, score);
+		DrawText(buffer, 400, 300 + i * 40, 35, GREEN);
+		i++;
+	    }
+
+	    fclose(fp);
 	    break;
 	}
-	
+	}
+
 	EndDrawing();
 	//----------------------------------------------------------------------------------
     }
@@ -469,6 +530,10 @@ int main(void) {
     //--------------------------------------------------------------------------------------
     CloseWindow(); // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
+
+
+    // free memory
+
 
     return 0;
 }
