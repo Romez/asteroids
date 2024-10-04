@@ -23,8 +23,8 @@ typedef struct {
 
 typedef struct {
     Vector2 center;
-    float direction;
     Vector2 vertices[3];
+    float direction;    
     float max_radius;
 } Ship;
 
@@ -46,6 +46,13 @@ typedef struct {
     float move_speed;
 } Asteroid;
 
+const Screen screen = {.width = 1800, .height = 1450};
+const float rotation_speed = 0.06;
+const float move_speed = 3;
+const float projectile_speed = 9;
+
+Ship init_ship(Vector2 center);
+
 void update_ship_vertices(Ship *ship) {
     float l = (3 * PI) / 4;
     float m = (5 * PI) / 4;
@@ -57,12 +64,12 @@ void update_ship_vertices(Ship *ship) {
     ship->vertices[1].y = ship->center.y - sin(ship->direction + l) * ship->max_radius;
 
     ship->vertices[2].x = ship->center.x + cos(ship->direction + m) * ship->max_radius;
-  ship->vertices[2].y = ship->center.y - sin(ship->direction + m) * ship->max_radius;
+    ship->vertices[2].y = ship->center.y - sin(ship->direction + m) * ship->max_radius;
 }
 
-Ship init_ship(float x, float y) {
+Ship init_ship(Vector2 center) {
     Ship ship = {
-	.center = (Vector2){x, y},
+	.center = center,
 	.direction = 0.0,
 	.max_radius = 30,
     };
@@ -302,17 +309,14 @@ void draw_game_over(Screen screen, char* player) {
 int main(void) {
     // Initialization
     //--------------------------------------------------------------------------------------
-    const Screen screen = {.width = 1800, .height = 1450};
-    const float rotation_speed = 0.06;
-    const float move_speed = 3;
-    const float projectile_speed = 9;
+    
     int score = 0;
     GameState game_state = RUNNING;
     int player_len = 0;
     char player[128];
     player[0] = '\0';
 
-    Ship ship = init_ship(500, 500);
+    Ship ship = init_ship((Vector2){500.0, 500.0});
 
     Deque *projectiles_dq = init_deque();
     Deque *asteroids_dq = init_deque();
@@ -355,9 +359,7 @@ int main(void) {
                     Projectile *p = (Projectile *)projectile_node->val;
                     if (is_visible(p->center, p->radius, screen)) {
 			Node *collision_node = NULL;
-			if ((collision_node =
-			     check_projectile_asteroids_collision(
-				 p, asteroids_dq->first)) != NULL) {
+			if ((collision_node = check_projectile_asteroids_collision(p, asteroids_dq->first)) != NULL) {
 			    Node *curr_ptr = projectile_node;
 
 			    projectile_node = projectile_node->next;
@@ -530,10 +532,7 @@ int main(void) {
     //--------------------------------------------------------------------------------------
     CloseWindow(); // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
-
-
     // free memory
-
 
     return 0;
 }
