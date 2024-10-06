@@ -5,11 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include "asteroids.h"
+#include "projectiles.h"
 
 #define MAX_ASTEROIDS 9
 
 typedef enum { MOVE_RIGHT, MOVE_UP, MOVE_LEFT, MOVE_DOWN } Direction;
-typedef enum { RIGHT, TOP, LEFT, BOTTOM } Side;
+typedef enum { RIGHT, TOP, LEFT, BOTTOM } ScreenSide;
 typedef enum { GAME, GAME_OVER, WINNERS} GameScreen;
 
 typedef struct {
@@ -25,12 +26,6 @@ typedef struct {
 } Ship;
 
 typedef struct {
-    Vector2 center;
-    float direction;
-    float radius;
-} Projectile;
-
-typedef struct {
     int score;
     GameScreen game_screen;
 } Game;
@@ -38,7 +33,7 @@ typedef struct {
 const Screen screen = {.width = 1800, .height = 1450};
 const float rotation_speed = 0.06;
 const float move_speed = 5;
-const float projectile_speed = 9;
+const float projectile_speed = 12;
 
 Ship init_ship(Vector2 center);
 
@@ -104,24 +99,6 @@ void move_ship(Ship *ship, float speed, Direction dir, Screen screen) {
     update_ship_vertices(ship);
 }
 
-Projectile *init_projectile(Vector2 center, float direction) {
-    Projectile *p = malloc(sizeof(Projectile));
-    assert(p != NULL && "Can't allocate projectile");
-
-    p->center = center;
-    p->direction = direction;
-    p->radius = 5;
-
-  return p;
-}
-
-/*
-void fire(Ship *ship, Deque *projectiles_dq) {
-    Projectile *p = init_projectile(ship->vertices[0], ship->direction);
-    prepend_node(projectiles_dq, p);
-}
-*/
-
 bool is_on_screen(Vector2 point, float radius, Screen screen) {
     return point.x + radius >= 0 && point.x - radius <= screen.width &&
 	point.y + radius >= 0 && point.y - radius <= screen.height;
@@ -132,35 +109,28 @@ void move_projectile_forward(Projectile *p, float speed) {
     p->center.y = p->center.y - sin(p->direction) * speed;
 }
 
-/*
-int check_projectile_asteroids_collision(Projectile *p, Asteroid *asteroids, int
-asteroids_len) { for (int i = 0; i < asteroids_len; i++) { Asteroid a =
-asteroids[i]; if (CheckCollisionCircles(a.center, a.max_radius, p->center,
-p->radius)) { if (CheckCollisionPointPoly(p->center, a.vectors, a.vertices_len))
-{ return i;
-                }
+bool check_projectile_asteroid_collision(Projectile *p, Asteroid* a) {
+    if (CheckCollisionCircles(p->center, p->radius, a->center, a->max_radius)) {	
+	if (CheckCollisionPointPoly(p->center, a->vector_coords, a->coords_size)) {
+	    return true;
+	}
 
-                if (CheckCollisionPointPoly((Vector2){p->center.x + p->radius,
-p->center.y}, a.vectors, a.vertices_len)) { return i;
-                }
+	Vector2 projectile_circle_points[] = {
+	    {p->center.x + p->radius, p->center.y},
+	    {p->center.x, p->center.y + p->radius},
+	    {p->center.x - p->radius, p->center.y},
+	    {p->center.x, p->center.y - p->radius}
+	};
 
-                if (CheckCollisionPointPoly((Vector2){p->center.x, p->center.y +
-p->radius}, a.vectors, a.vertices_len)) { return i;
-                }
-
-                if (CheckCollisionPointPoly((Vector2){p->center.x - p->radius,
-p->center.y}, a.vectors, a.vertices_len)) { return i;
-                }
-
-                if (CheckCollisionPointPoly((Vector2){p->center.x, p->center.y -
-p->radius}, a.vectors, a.vertices_len)) { return i;
-                }
-            }
+	for (int i = 0; i < sizeof(projectile_circle_points) / sizeof(Vector2); i++) {
+	    Vector2 v = projectile_circle_points[i];
+	    if (CheckCollisionPointPoly(v, a->vector_coords, a->coords_size)) {
+		return true;
+	    }	    
+	}
     }
-
-    return -1;
+    return false;
 }
-*/
 
 bool check_ship_asteroid_collision(Ship* ship, Asteroid* a) {
     if (CheckCollisionCircles(ship->center, ship->max_radius, a->center, a->max_radius)) {
@@ -209,18 +179,12 @@ void draw_ship(Ship ship) {
     DrawTriangleLines(ship.vertices[0], ship.vertices[1], ship.vertices[2], WHITE);
 }
 
-/*
-void draw_projectiles(Deque* projectiles_dq) {
-    Node* curr_node = projectiles_dq->first;
-    while (curr_node->next) {
-        if (curr_node->val != NULL) {
-            Projectile *p = (Projectile *)curr_node->val;
-            DrawCircleV(p->center, p->radius, RED);
-        }
-        curr_node = curr_node->next;
+void draw_projectiles(ProjectilesVector v) {
+    for (int i = 0; i < projectiles_vector_len(v); i++) {
+	Projectile* p = v[i];
+	DrawCircleV(p->center, p->radius, RED);
     }
 }
-*/
 
 void draw_info(int projectiles_count, int asteroids_count, int score) {
     char info_buffer[20];
@@ -267,9 +231,9 @@ int main(void) {
 
     Ship ship = init_ship((Vector2){500.0, 500.0});
 
-    //Deque *projectiles_dq = init_deque();
+    ProjectilesVector projectiles = make_projectiles_vector(3);
 
-    AsteroidsVector asteroids = init_asteroids_vector(MAX_ASTEROIDS);
+    AsteroidsVector asteroids = make_asteroids_vector(MAX_ASTEROIDS);
 
     int player_len = 0;
     char player[128];
@@ -303,60 +267,52 @@ int main(void) {
                 move_ship(&ship, move_speed, MOVE_DOWN, screen);
 	    }
 
-	    //if (IsKeyPressed(KEY_SPACE)) {
-                //fire(&ship, projectiles_dq);
-	    //}
-
-	    /*
-	    Node *projectile_node = projectiles_dq->first;
-	    while (projectile_node != NULL) {
-                if (projectile_node->val != NULL) {
-                    Projectile *p = (Projectile *)projectile_node->val;
-                    if (is_visible(p->center, p->radius, screen)) {
-			Node *collision_node = NULL;
-
-			if ((collision_node = check_projectile_asteroids_collision(p, game.asteroids, game.asteroids_len)) != NULL) {
-			    Node *curr_ptr = projectile_node;
-
-			    projectile_node = projectile_node->next;
-
-			    remove_node(projectiles_dq, curr_ptr);
-
-			    //remove_node(asteroids_dq, collision_node);
-
-			    game.score++;
-			} else {
-			    move_projectile_forward(p, projectile_speed);
-			    projectile_node = projectile_node->next;
-			}
-
-                    } else {
-			Node *curr_ptr = projectile_node;
-
-			projectile_node = projectile_node->next;
-
-			remove_node(projectiles_dq, curr_ptr);
-                    }
-                } else {
-                    projectile_node = projectile_node->next;
-                }
+	    if (IsKeyPressed(KEY_SPACE)) {
+		Projectile* p = make_projectile(ship.vertices[0], ship.direction);		
+		append_to_projectiles_vector(&projectiles, p);
 	    }
-	    */
+	    
+	    for (int i = 0; i < projectiles_vector_len(projectiles); i++) {
+		Projectile* p = projectiles[i];
+		if (!is_on_screen(p->center, p->radius, screen)) {
+		    delete_from_projectiles_vector(projectiles, i);
+		    continue;
+		}
+		    
+		move_projectile_forward(p, projectile_speed);
+	    }
+
+	    for (int i = 0; i < asteroids_vector_len(asteroids); i++) {
+		Asteroid* a = asteroids[i];
+		if (!is_on_screen(a->center, a->max_radius, screen)) {
+		    delete_from_asteroids_vector(asteroids, i);
+		}
+	    }
 	    
 	    bool asteroids_to_delete[asteroids_vector_len(asteroids)];
 	    for (int i = 0; i < asteroids_vector_len(asteroids); i++) {
 		asteroids_to_delete[i] = false;
 	    }
+
+	    bool projectiles_to_delete[projectiles_vector_len(projectiles)];
+	    for (int i = 0; i < projectiles_vector_len(projectiles); i++) {
+		projectiles_to_delete[i] = false;
+	    }
 	    
 	    for (int i = 0; i < asteroids_vector_len(asteroids); i++) {
 		Asteroid* a1 = asteroids[i];
-		if (!is_on_screen(a1->center, a1->max_radius, screen)) {
-		    asteroids_to_delete[i] = true;		
-		}
-		
 		if (check_ship_asteroid_collision(&ship, a1)) {
 		    game.game_screen = GAME_OVER;
 		    break;
+		}
+
+		for (int j = 0; j < projectiles_vector_len(projectiles); j++) {
+		    Projectile* p = projectiles[j];
+		    if (check_projectile_asteroid_collision(p, a1)) {
+			asteroids_to_delete[i] = true;
+			projectiles_to_delete[j] = true;
+			game.score++;
+		    }
 		}
 
 		for (int j = i + 1; j < asteroids_vector_len(asteroids); j++) {
@@ -374,8 +330,13 @@ int main(void) {
 		    delete_from_asteroids_vector(asteroids, i);
 		}
 	    }
+	    for(int i = projectiles_vector_len(projectiles) - 1; i >= 0 ; i--) {
+		if (projectiles_to_delete[i] == true) {
+		    delete_from_projectiles_vector(projectiles, i);
+		}
+	    }
 
-	    if (asteroids_vector_len(asteroids) < asteroids_vector_cap(asteroids) && (GetRandomValue(0, 60) == 4)) {
+	    if (asteroids_vector_len(asteroids) < asteroids_vector_cap(asteroids) && (GetRandomValue(0, 30) == 4)) {
                 Asteroid* a;
                 float direction;
 
@@ -449,18 +410,16 @@ int main(void) {
 	case GAME:
 	    draw_ship(ship);
 
-	    //draw_projectiles(projectiles_dq);
+	    draw_projectiles(projectiles);
 
 	    for (int i = 0; i < asteroids_vector_len(asteroids); i++) {
 		draw_asteroid(asteroids[i]);
 	    }
 
-	    draw_info(0, asteroids_vector_len(asteroids), game.score);
+	    draw_info(projectiles_vector_len(projectiles), asteroids_vector_len(asteroids), game.score);
 	    break;
 	case GAME_OVER:
 	    draw_ship(ship);
-
-	    //draw_projectiles(projectiles_dq);
 
 	    for (int i = 0; i < asteroids_vector_len(asteroids); i++) {
 		draw_asteroid(asteroids[i]);
@@ -504,4 +463,4 @@ int main(void) {
     // free memory
 
     return 0;
-    }
+}

@@ -68,7 +68,7 @@ void free_asteroid(Asteroid *a) {
     free(a);
 }
 
-AsteroidsVector init_asteroids_vector(int size) {
+AsteroidsVector make_asteroids_vector(int size) {
     AsteroidsVector v = malloc(sizeof(Asteroid) * size + sizeof(int) * 2);
     assert(v != NULL && "Can't allocate asteroids vector");
     
@@ -95,6 +95,9 @@ void append_to_asteroids_vector(AsteroidsVector v, Asteroid *a) {
 }
 
 void delete_from_asteroids_vector(AsteroidsVector v, int idx) {
+    Asteroid* a = v[idx];
+    free_asteroid(a);
+    
     int bytes_to_copy = (asteroids_vector_len(v) - idx - 1) * sizeof(Asteroid*);
 
     AsteroidsVector ptr1 = v + idx;
@@ -105,11 +108,7 @@ void delete_from_asteroids_vector(AsteroidsVector v, int idx) {
 }
 
 void free_asteroid_vector(AsteroidsVector v) {
-    int size = asteroids_vector_len(v);
-    for (int i = 0; i < size; i++) {
-	Asteroid* a = v[i];
-	free_asteroid(a);
-    }
+    v = (AsteroidsVector)((int*)v - 2);
     free(v);
 }
 

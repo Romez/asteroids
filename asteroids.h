@@ -24,7 +24,7 @@ void move_asteroid(Asteroid *a);
 
 void free_asteroid(Asteroid *a);
 
-AsteroidsVector init_asteroids_vector(int size);
+AsteroidsVector make_asteroids_vector(int size);
 
 int asteroids_vector_len(AsteroidsVector v);
 
